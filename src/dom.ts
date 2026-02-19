@@ -132,6 +132,9 @@ const html = `
 				</select>
 			  </span>
 			</div>
+			<div id="rgef_paragraph_breaks_hint" class="rgef_setting-hint">
+				Tip: paragraph spacing only works when removing the parent node.
+			</div>
 			<div class="rgef_setting">
 			  <label class="bp3-control bp3-switch bp3-align-right" title="turns attributes:: into attributes:">
 				Extra colon <code>::</code>

@@ -21,13 +21,14 @@ import { getElementValue, setElementValue, addEventListener } from "./utils";
 
 const RENDERED_PREVIEW_SETTING_ID = "rgef_enable_rendered_preview";
 const RENDER_TARGET_SETTING_ID = "rgef_render_target";
+const PARAGRAPH_BREAKS_HINT_ID = "rgef_paragraph_breaks_hint";
 const copyButtonResetTimers = new Map<string, number>();
 const SETTINGS_STORAGE_KEY_BASE = "rgef_settings";
 let pendingRenderFrame: number | null = null;
 let pendingPreviewFrame: number | null = null;
 let orderedRenderTargetsCache: ReadonlyArray<RenderTarget> | null = null;
 
-interface settings {
+export interface settings {
 	ignore_parent_node: boolean;
 	flatten_indentation: number;
 	remove_bullets: boolean;
@@ -59,7 +60,7 @@ const RENDER_TARGET_HINT_TEXT: Record<RenderTarget, string> = {
 	email: "Rich HTML + plain text copy for email composers.",
 	github: "Markdown-first output for GitHub markdown fields.",
 	llm: "Markdown-first output for LLM prompts and chat inputs.",
-	slack: "Plain-text mrkdwn output for copy/paste into Slack composer.",
+	slack: "Plain-text markdown output for copy/paste into Slack composer.",
 	whatsapp: "Plain-text markers and links normalized for WhatsApp paste.",
 	telegram: "Conservative markdown marker set and plain link fallback.",
 	signal: "Plain-text safe output. Unsupported markdown is stripped.",
@@ -78,7 +79,10 @@ const RENDER_TARGET_HINT_TEXT: Record<RenderTarget, string> = {
 function getGraphStorageScope(): string {
 	try {
 		const maybeGraphName = (window as any)?.roamAlphaAPI?.graph?.name;
-		if (typeof maybeGraphName === "string" && maybeGraphName.trim().length > 0) {
+		if (
+			typeof maybeGraphName === "string" &&
+			maybeGraphName.trim().length > 0
+		) {
 			return maybeGraphName.trim();
 		}
 		if (typeof maybeGraphName === "function") {
@@ -119,7 +123,11 @@ function buildOrderedRenderTargets(): RenderTarget[] {
 	if (!Array.isArray(RENDER_TARGET_GROUPS)) {
 		return [DEFAULT_RENDER_TARGET];
 	}
-	for (let groupIndex = 0; groupIndex < RENDER_TARGET_GROUPS.length; groupIndex++) {
+	for (
+		let groupIndex = 0;
+		groupIndex < RENDER_TARGET_GROUPS.length;
+		groupIndex++
+	) {
 		const group = RENDER_TARGET_GROUPS[groupIndex];
 		for (
 			let targetIndex = 0;
@@ -147,7 +155,9 @@ function getOrderedRenderTargetsCached(): ReadonlyArray<RenderTarget> {
 	return orderedRenderTargetsCache;
 }
 
-function ensureRenderTargetOptions(preferredTarget?: RenderTarget): RenderTarget {
+function ensureRenderTargetOptions(
+	preferredTarget?: RenderTarget
+): RenderTarget {
 	const targetSelect = document.getElementById(
 		RENDER_TARGET_SETTING_ID
 	) as HTMLSelectElement | null;
@@ -377,6 +387,19 @@ function syncRenderedColumnVisibility(previewEnabled: boolean) {
 	parentLayout.classList.toggle("rgef_rendered-hidden", !previewEnabled);
 }
 
+function syncParagraphBreaksHintVisibility() {
+	const hintEl = document.getElementById(PARAGRAPH_BREAKS_HINT_ID);
+	if (!(hintEl instanceof HTMLElement)) {
+		return;
+	}
+
+	const isParagraphMode =
+		getElementValue("#rgef_line_breaks_before_all_nodes") === "false";
+	const isRemovingParentNode = getCheckboxValue("rgef_ignore_parent_node");
+	hintEl.style.display =
+		isParagraphMode && !isRemovingParentNode ? "block" : "none";
+}
+
 function setSettingValue(
 	id: string,
 	value: string | number | null | boolean,
@@ -404,7 +427,9 @@ function setSettingValue(
 			value = el.dataset.default?.toString() ?? "";
 		}
 		if (value !== null) {
-			const optionIndex = options.findIndex((opt) => opt.value === String(value));
+			const optionIndex = options.findIndex(
+				(opt) => opt.value === String(value)
+			);
 			if (optionIndex >= 0) {
 				el.selectedIndex = optionIndex;
 			}
@@ -425,6 +450,7 @@ export function formatter_init() {
 
 	addEventListener("#rgef_settings-form", "change", function () {
 		saveSettingsToLocalStorage();
+		syncParagraphBreaksHintVisibility();
 		render();
 	});
 
@@ -447,15 +473,18 @@ export function formatter_init() {
 			return;
 		}
 
-		form.querySelectorAll("input[type='checkbox'], select").forEach(function (el) {
-			const id = el.getAttribute("id");
-			if (id) {
-				setSettingValue(id, null, true);
-			}
-		});
+		form
+			.querySelectorAll("input[type='checkbox'], select")
+			.forEach(function (el) {
+				const id = el.getAttribute("id");
+				if (id) {
+					setSettingValue(id, null, true);
+				}
+			});
 		ensureRenderTargetOptions(DEFAULT_RENDER_TARGET);
 		setSettingValue(RENDER_TARGET_SETTING_ID, null, true);
 		saveSettingsToLocalStorage();
+		syncParagraphBreaksHintVisibility();
 		render();
 	});
 
@@ -476,7 +505,9 @@ export function formatter_init() {
 	});
 
 	addEventListener("#rgef_copy_rendered", "click", function () {
-		const renderedOutputElement = document.getElementById("rgef_rendered-output");
+		const renderedOutputElement = document.getElementById(
+			"rgef_rendered-output"
+		);
 		if (!renderedOutputElement) {
 			return;
 		}
@@ -534,7 +565,8 @@ function loadSettingsFromLocalStorage() {
 		typeof storedRenderTargetRaw === "string"
 			? storedRenderTargetRaw === "standard"
 				? "word"
-				: storedRenderTargetRaw === "beeper" || storedRenderTargetRaw === "plain"
+				: storedRenderTargetRaw === "beeper" ||
+				  storedRenderTargetRaw === "plain"
 				? "messaging"
 				: isRenderTarget(storedRenderTargetRaw)
 				? storedRenderTargetRaw
@@ -599,7 +631,10 @@ function getUiSettingsFromDom(): uiSettings {
 	};
 }
 
-function applyFormatterSettings(input: string, settings: settings): string {
+export function applyFormatterSettings(
+	input: string,
+	settings: settings
+): string {
 	let result = input;
 
 	if (settings.ignore_parent_node) {
@@ -724,6 +759,8 @@ function renderRenderedPreviewFromOutputField() {
 }
 
 export function render() {
+	syncParagraphBreaksHintVisibility();
+
 	const settings = getSettingsFromDom();
 	if (isNaN(settings.add_line_breaks)) {
 		settings.add_line_breaks = 0;
@@ -865,7 +902,7 @@ function addLineBreaksBeforeAllNodes(
 		.split(BLOCK_DELIMITER)
 		.map(function (line, index) {
 			//dont add line breaks before the first node
-			if (index > 0 && numberOfLineBreaks > 0 ) {
+			if (index > 0 && numberOfLineBreaks > 0) {
 				return "\n".repeat(numberOfLineBreaks) + line;
 			}
 			return line;
@@ -886,8 +923,8 @@ function flattenIndentation(input: string, flatten_indentation: number) {
 			.split(BLOCK_DELIMITER)
 			.map(function (line) {
 				return line.trimStart();
-				})
-				.join(BLOCK_DELIMITER);
+			})
+			.join(BLOCK_DELIMITER);
 	}
 
 	return input
@@ -939,36 +976,50 @@ function removeHashtagMarks(input: string): string {
 }
 
 function removeHashtags(input: string) {
-
+	const hashtagPattern =
+		/#\[\[[^\]]+\]\]|#\(\([^)]+\)\)|#[^\s#()[\]{}.,;:!?]+/g;
 	const outputLines: string[] = [];
 	const lines = input.split(BLOCK_DELIMITER);
 	const hashtagTokenPattern =
-		/(^|[\s(])(?:#\[\[[^\]]+\]\]|#\(\([^)]+\)\)|#[^\s#()[\]{}]+)(?=$|[\s),.;:!?])/;
+		/(^|[\s(])(?:#\[\[[^\]]+\]\]|#\(\([^)]+\)\)|#[^\s#()[\]{}.,;:!?]+)(?=$|[\s),.;:!?])/;
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		const hadHashtagToken = hashtagTokenPattern.test(line);
-		const cleaned = line
-				// Remove page-ref hashtags: #[[some page]]
-				.replace(
-					/(^|[\s(])#\[\[[^\]]+\]\](?=$|[\s),.;:!?])/gm,
-					"$1"
-				)
-				// Remove block-ref hashtags: #((uid))
-				.replace(
-					/(^|[\s(])#\(\([^)]+\)\)(?=$|[\s),.;:!?])/gm,
-					"$1"
-				)
-				// Remove plain hashtags: #tag
-				.replace(
-					/(^|[\s(])#[^\s#()[\]{}]+(?=$|[\s),.;:!?])/gm,
-					"$1"
-				)
-				// Tidy spacing after removals.
-				.replace(/^(\s*-\s)\s+/gm, "$1")
-				.replace(/\s{2,}/gm, " ")
-				.replace(/\s+([,.;:!?])/gm, "$1")
-				.trimEnd();
+
+		hashtagPattern.lastIndex = 0;
+		let rebuilt = "";
+		let cursor = 0;
+		let match = hashtagPattern.exec(line);
+
+		while (match) {
+			const token = match[0];
+			const start = match.index;
+			const end = start + token.length;
+			const prevChar = start > 0 ? line[start - 1] : "";
+			const nextChar = end < line.length ? line[end] : "";
+			const hasValidPrefix = start === 0 || /[\s(]/.test(prevChar);
+			const hasValidSuffix = nextChar === "" || /[\s),.;:!?]/.test(nextChar);
+
+			if (!hasValidPrefix || !hasValidSuffix) {
+				match = hashtagPattern.exec(line);
+				continue;
+			}
+
+			let segment = line.slice(cursor, start);
+			if (segment.endsWith(" ") && nextChar === " ") {
+				segment = segment.slice(0, -1);
+			}
+			rebuilt += segment;
+
+			cursor = start === 0 && nextChar === " " ? end + 1 : end;
+			match = hashtagPattern.exec(line);
+		}
+
+		const cleaned = `${rebuilt}${line.slice(cursor)}`
+			.replace(/^(\s*-\s)\s+/gm, "$1")
+			.replace(/\s+([),.;:!?])/gm, "$1")
+			.trimEnd();
 
 		// If a line becomes only a bullet marker after hashtag removal,
 		// drop the entire line.
@@ -1026,12 +1077,15 @@ function removeNamespaces(input: string): string {
 	return input
 		.split(BLOCK_DELIMITER)
 		.map(function (line) {
-			return line.replace(/\[\[([^\]]+)\]\]/gm, function (_match, inner: string) {
-				const lastSegment = inner.split("/").pop();
-				return typeof lastSegment === "string" && lastSegment.length > 0
-					? `[[${lastSegment}]]`
-					: `[[${inner}]]`;
-			});
+			return line.replace(
+				/\[\[([^\]]+)\]\]/gm,
+				function (_match, inner: string) {
+					const lastSegment = inner.split("/").pop();
+					return typeof lastSegment === "string" && lastSegment.length > 0
+						? `[[${lastSegment}]]`
+						: `[[${inner}]]`;
+				}
+			);
 		})
 		.join(BLOCK_DELIMITER);
 }
@@ -1095,8 +1149,7 @@ function removeTodoOnlyLines(input: string) {
 		.filter(function (line) {
 			// Drop lines that are only a bullet/task marker with no content.
 			return (
-				!/^\s*-\s*(?:\[(?:\s|x|X)\]|☐|☑︎)?\s*$/.test(line) &&
-				line.trim() !== ""
+				!/^\s*-\s*(?:\[(?:\s|x|X)\]|☐|☑︎)?\s*$/.test(line) && line.trim() !== ""
 			);
 		})
 		.join(BLOCK_DELIMITER);
@@ -1118,7 +1171,10 @@ function removeCalloutMarkers(input: string) {
 			.trimEnd();
 
 		// If this line was only a callout marker, drop the empty bullet line.
-		if (hadCalloutPrefix && (/^\s*-\s*$/.test(cleaned) || cleaned.trim() === "")) {
+		if (
+			hadCalloutPrefix &&
+			(/^\s*-\s*$/.test(cleaned) || cleaned.trim() === "")
+		) {
 			continue;
 		}
 

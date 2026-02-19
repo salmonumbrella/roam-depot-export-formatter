@@ -19,10 +19,7 @@
 		--color-reference-background,
 		var(--color-right-sidebar-background, var(--bp3-dark-elevation-1, #2b2f36))
 	);
-	--rgef-panel-border: var(
-		--color-sidebar-border,
-		rgba(255, 255, 255, 0.12)
-	);
+	--rgef-panel-border: var(--color-sidebar-border, rgba(255, 255, 255, 0.12));
 	--rgef-text: var(--color-light-gray, var(--bp3-dark-text-color, #e7e9ec));
 	--rgef-muted-text: var(--color-icon, rgba(255, 255, 255, 0.68));
 	--rgef-select-bg: var(
@@ -258,6 +255,14 @@
 
 .rgef_setting--select label {
 	flex: 1;
+}
+
+.rgef_setting-hint {
+	font-size: 11px;
+	line-height: 1.3;
+	padding: 0 0 8px;
+	color: var(--rgef-muted-text);
+	display: none;
 }
 
 #rgef_settings-form label {
